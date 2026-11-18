@@ -1,0 +1,13 @@
+# 下载的数据集与训练产物（仅本地保留）
+assignment1/cs231n/datasets/cifar-10-batches-py/
+assignment1/cs231n/datasets/*.tar.gz
+assignment1/cs231n/saved/*.npy
+final/data/
+final/runs/
+*.pt
+*.pth
+# Python 和系统缓存
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
