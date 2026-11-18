@@ -1,5 +1,6 @@
-torch>=2.2
-torchvision>=0.17
+# 基础依赖。PyTorch 请按设备安装，避免自动选到不兼容服务器驱动的 CUDA 构建。
+# NVIDIA Linux: python -m pip install -r requirements-cu121.txt
+# Mac: python -m pip install torch==2.5.1 torchvision==0.20.1
 numpy>=1.24
 Pillow>=10
 matplotlib>=3.7

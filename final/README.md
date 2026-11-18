@@ -12,8 +12,25 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+```
+
+NVIDIA Linux 服务器再安装与现有驱动匹配的 CUDA 12.1 配套版本：
+
+```bash
+python -m pip install -r requirements-cu121.txt
+```
+
+Mac 本地环境使用：
+
+```bash
+python -m pip install torch==2.5.1 torchvision==0.20.1
+```
+
+已安装并确认 `torch==2.5.1+cu121`、`torchvision==0.20.1+cu121` 的服务器不必重新安装。验证：
+
+```bash
 python smoke_test.py
-python -m unittest test_metrics.py
+python -m unittest test_metrics.py test_training.py
 ```
 
 也可在已有 dl_env 环境安装。torch 与 torchvision 必须是官方兼容版本对；CUDA 用户按 https://pytorch.org/get-started/locally/ 安装适合本机的组合，再安装其余依赖。Mac 默认 CPU；完整训练建议 CUDA GPU。MPS 上部分检测算子可能不支持，不默认使用 MPS。
@@ -94,3 +111,44 @@ python main.py report --run runs/baseline
 - https://docs.pytorch.org/vision/stable/generated/torchvision.ops.FeaturePyramidNetwork.html
 - https://docs.pytorch.org/vision/stable/generated/torchvision.datasets.VOCDetection.html
 - http://host.robots.ox.ac.uk/pascal/VOC/
+
+
+## 7. 从 28.29% 基线继续改进（新增）
+
+这些设置是待验证的改进实验，不保证一定提高 AP。保留原 runs/baseline，不覆盖数据或权重。只根据验证集选择模型。
+
+### 实验 A：固定 512 输入，仅增加训练预算和调整优化策略
+
+```bash
+python main.py train --device cuda --init-from runs/baseline/best.pt --epochs 30 --lr 0.001 --schedule cosine --warmup-iters 500 --image-size 512 --workers 4 --output runs/continue512 --voc07
+```
+
+`--init-from` 加载已有权重，重新创建优化器，不是精确断点恢复。基线已训练 30 轮，本次再训练 30 轮，总预算约 60 轮。程序先评估初始化权重并保存到新目录，后续若退化仍保留初始化模型为 best.pt。不要把新日志中的 30 轮误称为总训练轮数。
+
+### 实验 B：相同初始化权重，增加输入分辨率并进行多尺度训练
+
+```bash
+python main.py train --device cuda --init-from runs/baseline/best.pt --epochs 30 --lr 0.001 --schedule cosine --warmup-iters 500 --image-size 640 --multiscale 480 576 640 --workers 4 --output runs/multiscale640 --voc07
+```
+
+多尺度只作用于训练；验证和预测固定短边 640。更大输入保留更多小目标细节，但会增加显存和计算，是否改善 bottle/pottedplant 等类别需要实际验证。为了单独区分分辨率与多尺度的作用，可先移除 `--multiscale 480 576 640` 跑固定 640 对照。保持 batch size=2；若 workers=4 导致共享内存错误，改为 0。显存不足时先将 image-size 降至576并同步调整 multiscale。
+
+### 完成后比较验证结果，再做最终测试
+
+```bash
+python -c "import json; from pathlib import Path; [print(p.parent, json.loads(p.read_text())['mAP50']) for p in Path('runs').glob('*/best_metrics.json')]"
+```
+
+原基线 0.2829 来自用户的实际运行，不能将新增方案的预期写成已实现提升。选定最终实验后，将下面路径替换为其目录：
+
+```bash
+python main.py evaluate --device cuda --split test --checkpoint runs/multiscale640/best.pt --output runs/multiscale640/test_metrics.json --voc07
+python main.py report --run runs/multiscale640 --name 孙涛 --student-id 2631101265
+```
+
+报告会区分验证集与测试集，记录继续训练来源、多尺度设置和学习率策略。重新生成前自动备份原报告，保留原姓名和学号；手工图片分析可从备份合并。读取的测试文件应由当前 best.pt 重新评估生成，不要拷贝其他实验的旧结果。
+
+
+## 已完成的实验
+
+实际配置、训练日志与报告见 [experiments/README.md](experiments/README.md)。当前最佳方案的验证 mAP@0.5 为34.66%，测试 mAP@0.5 为36.15%；结果采用 VOC2007 十一点 AP。

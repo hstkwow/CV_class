@@ -1,0 +1,4 @@
+# Linux NVIDIA：配套 PyTorch / torchvision，CUDA 12.1 运行库。
+--index-url https://download.pytorch.org/whl/cu121
+torch==2.5.1
+torchvision==0.20.1
